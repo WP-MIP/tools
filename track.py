@@ -122,31 +122,26 @@ class storm(dict):
         return(dtime.strftime('%Y-%m-%d %H:%M:%S'))
     def _rpntoibtracs(self, rpndate):
         return(self._dttoibtracs(self._todtime(rpndate)))
-        
+
 
 if __name__ == "__main__":
 
-    tc_wp = ["2024141N03142", "2024151N18113", "2024224N27154", "2024225N22135",
-             "2024225N24147", "2024231N24126", "2024246N22147", "2024259N12145",
-             "2024267N29129", "2024269N14150", "2024278N11150", "2024298N13150"]
-    tc_na = ["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
-             "2024269N39302", "2024274N14328", "2024279N21265"]
+    tcid = {'WP':["2024141N03142", "2024151N18113", "2024224N27154", "2024225N22135",
+                  "2024225N24147", "2024231N24126", "2024246N22147", "2024259N12145",
+                  "2024267N29129", "2024269N14150", "2024278N11150", "2024298N13150"],
+            'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
+                  "2024269N39302", "2024274N14328", "2024279N21265"]}
     
     fcst_path = "data/oic/cwao/pm"
     opath = "tracks/oic/cwao/pm"
 
-    # North Pacific tropical cyclone tracking
-    df_wp = pd.read_csv('ibtracs/ibtracs.WP.list.v04r01.csv', index_col="SID")
-    for tc in tc_wp:
-        bt = storm(df_wp, tc, fcst_path)
-        bt.tctrack()
-        bt.write(os.path.join(opath,'WP'))
+    # Track identified storms in appropriate basins
+    for basin in tcid.keys():
+        df = pd.read_csv('ibtracs/ibtracs.'+basin+'.list.v04r01.csv', index_col="SID")
+        for tc in tcid[basin]:
+            bt = storm(df, tc, fcst_path)
+            bt.tctrack()
+            bt.write(os.path.join(opath, basin))
 
-    # North Atlantic tropical cyclone tracking
-    df_na = pd.read_csv('ibtracs/ibtracs.NA.list.v04r01.csv', index_col="SID")
-    for tc in tc_na:
-        bt = storm(df_na, tc, fcst_path)
-        bt.tctrack()
-        bt.write(os.path.join(opath,'NA'))
     
 
