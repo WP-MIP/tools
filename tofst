@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+convert(){
+    fn=$1
+    ofile=$(echo ${fn} | sed 's/\.grib2/.fst/')
+    rm -f ${fn}.uncomp ${ofile}
+    grib_set -r -s packingType=grid_simple ${fn} ${fn}.uncomp
+    grib2_decode -i ${fn}.uncomp -o ${ofile}
+    rm ${fn}.uncomp
+}
+    
+indir=data/oic/cwao/pm
+pwd=${PWD}
+
+cd ${indir}
+for fn in *.grib2 ; do
+    convert ${fn} &
+done
+wait
+cd ${pwd}

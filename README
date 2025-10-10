@@ -1,0 +1,16 @@
+. r.load.dot eccc/mrd/rpn/MIG/ENV/rpnpy/2.2.0 \
+             eccc/mrd/rpn/code-tools/ENV/cdt-1.6.6/SCIENCE/inteloneapi-2022.1.2
+. r.load.dot eccc/mrd/rpn/libs/20230906 \
+             eccc/cmd/cmda/libs/20230906/inteloneapi-2022.1.2
+. r.load.dot mrd/rpn/utils/20240717
+
+. r.load.dot /fs/ssm/eccc/cmd/cmds/apps/grib/grib2-cvt/2.3.1/
+ECCODES_ROOT=/home/rmt001/local/ords/installed/eccodes;
+export PATH=${ECCODES_ROOT}/bin:${PATH};
+export LD_LIBRARY_PATH=${ECCODES_ROOT}/lib64:${LD_LIBRARY_PATH};
+export EC_LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
+export ECCODES_DEFINITION_PATH=$HOME/local/ords/installed/eccodes/share/eccodes/definitions
+
+# Python virtual environment for grib checking tool
+source /home/rmt001/local/ords/installed/venv/bin/activate
+
