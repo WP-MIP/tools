@@ -71,9 +71,11 @@ class storm(dict):
                     for fix in fixes:
                         wind = fix['min'] > 0 and round(fix['wind']) or 0
                         cnt = cnt+1
-                        fd.write("{0:05d} {1}*{2:03d}{3:04d}{4:4d}{5:5d}".format(cnt*10, fix['date'].strftime('%Y/%m/%d/%H'),
-                                                                                 round(fix['lat']*10), round(fix['lon']*10),
-                                                                                 wind, round(fix['pres'])) + ext)
+                        fixstr = "{0:05d} {1}*{2:03d}{3:04d}{4:4d}{5:5d}*{6:03d}{7:04d}"
+                        fd.write(fixstr.format(cnt*10, fix['date'].strftime('%Y/%m/%d/%H'),
+                                               round(fix['lat']*10), round(fix['lon']*10),
+                                               wind, round(fix['pres']),
+                                               round(fix['latwind']*10), round(fix['lonwind']*10)) + ext)
                 fd.write("{0:05d}  EX\n".format(cnt*10+5))
     def _find_ics(self):
         fd = rmn.fstopenall(os.path.join(self.dpath, 'gh_1000*'))
@@ -146,11 +148,11 @@ class storm(dict):
             lons.append(found['lon'])
             found['date'] = date
             found['fcst'] = fcst
-            (found['pres'], found['wind']) = self._vitals(found)
+            (found['pres'], found['wind'], found['latwind'], found['lonwind']) = self._vitals(found, grid)
             track.append(found)
         return(track[::dir])
-    def _vitals(self, fix):
-        wind_dxy = 4
+    def _vitals(self, fix, grid):
+        wind_dxy = 6
         x = fix['x']
         y = fix['y']
         fldt = self._readfld(fix, 't')
@@ -158,8 +160,11 @@ class storm(dict):
         fldu = self._readfld(fix, 'u')
         fldv = self._readfld(fix, 'v')
         wspd = np.sqrt(fldu['d']**2 + fldv['d']**2)
-        wind = wspd[max(x-wind_dxy,0):x+wind_dxy+1,y-wind_dxy:y+wind_dxy+1].max()
-        return(pres, wind)
+        wind_local = wspd[max(x-wind_dxy,0):min(x+wind_dxy+1,grid['ni']-1),y-wind_dxy:y+wind_dxy+1]
+        wind = wind_local.max()
+        xy_local = np.where(wind_local == wind)
+        ll = rmn.gdllfxy(grid['id'], [x-wind_dxy+xy_local[0]], [y-wind_dxy+xy_local[1]])
+        return(pres, wind, ll['lat'][0,0], ll['lon'][0,0])
     def _readfld(self, fix, name):
         fdfld = rmn.fstopenall(os.path.join(self.dpath, name+'_1000*'))
         fld = rmn.fstlir(fdfld, datev=self._torpndate(fix['date']), ip2=fix['fcst'])
@@ -186,8 +191,8 @@ if __name__ == "__main__":
                   "2024269N39302", "2024274N14328", "2024279N21265"]}
 
 
-    tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
-                  "2024269N39302", "2024274N14328", "2024279N21265"]}
+    #tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
+    #              "2024269N39302", "2024274N14328", "2024279N21265"]}
     
     fcst_path = "data/oic/cwao/pm"
     opath = "tracks/oic/cwao/pm"
