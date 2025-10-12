@@ -49,13 +49,13 @@ class storm(dict):
                 self.tracks[ic].append(track_back + track_fwd[1:])
         rmn.fstcloseall(fd)
         return()
-    def write(self, path):
+    def write(self, path, centre, mtype, basin_long):
         for ic in self.tracks.keys():
             if (len(self.tracks[ic]) < 1): continue
             idat = self._todtime(ic)
-            fname = os.path.join(path, '0001'+idat.strftime('%Y%m%d%H')+'_FC_000360_enp')
+            fname = os.path.join(path, centre, mtype, centre+idat.strftime('%Y%m%d%H')+"_FC_000360_"+basin_long)
             try:
-                os.makedirs(path)
+                os.makedirs(os.path.dirname(fname))
             except FileExistsError:
                 pass
             try:
@@ -193,18 +193,22 @@ if __name__ == "__main__":
 
     #tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
     #              "2024269N39302", "2024274N14328", "2024279N21265"]}
-    
-    fcst_path = "data/oic/cwao/pm"
-    opath = "tracks/oic/cwao/pm"
+
+    centre = "cwao"
+    stream = "oic"
+    mtype = "pm"
+    fcst_path = os.path.join("data", stream, centre, mtype)
+    opath = os.path.join("tracks", stream)
 
     # Track identified storms in appropriate basins
+    basin_long = {'NA':'atl', 'WP':'wnp', 'EP':'enp'}
     for basin in tcid.keys():
         df = pd.read_csv('ibtracs/ibtracs.'+basin+'.list.v04r01.csv', index_col="SID",
                          low_memory=False)
         for tc in tcid[basin]:
             bt = storm(df, tc, fcst_path)
             bt.tctrack()
-            bt.write(os.path.join(opath, basin))
+            bt.write(opath, centre, mtype, basin_long[basin])
 
     
 
