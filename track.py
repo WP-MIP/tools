@@ -16,11 +16,12 @@ class storm(dict):
         self.start = dt.fromisoformat(self.start_str)
         self.end_str = self.track['ISO_TIME'].iloc[-1]
         self.end = dt.fromisoformat(self.end_str)
-        self.dxy = 8
+        self.search_rad = 8
         self._find_ics()
     def tctrack(self):
         fd = rmn.fstopenall(os.path.join(self.dpath, 'gh_1000*'))
         fcst_keys = {}
+        et = {}
         # Retrieve list of keys for each initialization
         for ic in self.ic_dates:
             fcst_keys[ic] = []
@@ -31,24 +32,26 @@ class storm(dict):
                     if rmn.difdatr(meta['datev'], self._torpndate(self.start)) >= 0 \
                        and rmn.difdatr(meta['datev'], self._torpndate(self.end)) <= 0:
                         fcst_keys[ic].append(key)
+                        nature = self.track.loc[self.track['ISO_TIME'] ==
+                                                self._rpntoibtracs(meta['datev'])]['NATURE'].iloc[0]
+                        if ic not in et.keys() and (nature == "ET" or key == keys[-1]):
+                                et[ic] = {'date':self._todtime(meta['datev']), 'key':key}
         # Process each initialization
         self.tracks = {}
         for ic in fcst_keys.keys():
             # Identify initial storm location
             self.tracks[ic] = []
-            for key in fcst_keys[ic]:
-                fld = rmn.fstluk(key)
-                grid = rmn.readGrid(fd, fld)
-                (lat, lon, date, fcst) = self._btPos(key)
-                found = self._findCentre(grid, fld, lat, lon)
-                found['date'] = date
-                found['fcst'] = fcst
-                (found['pres'], found['wind']) = self._vitals(found)
-                self.tracks[ic].append(found)
+            ikey0 = fcst_keys[ic].index(et[ic]['key'])
+            track_fwd = self._tracking(fd, fcst_keys[ic][ikey0:len(fcst_keys[ic])+1], 1)
+            track_back = self._tracking(fd, fcst_keys[ic][0:ikey0+1], -1)
+            track = track_back + track_fwd[1:]
+            if len(track) > 1:
+                self.tracks[ic].append(track_back + track_fwd[1:])
         rmn.fstcloseall(fd)
         return()
     def write(self, path):
         for ic in self.tracks.keys():
+            if (len(self.tracks[ic]) < 1): continue
             idat = self._todtime(ic)
             fname = os.path.join(path, '0001'+idat.strftime('%Y%m%d%H')+'_FC_000360_enp')
             try:
@@ -56,13 +59,13 @@ class storm(dict):
             except FileExistsError:
                 pass
             fd = open(fname, "a")
-            fd.write("00000 {0} M={1:2d}   1 SNBR={2:4d}\n".format(idat.strftime('%d/%m/%Y'), len(self.tracks[ic]),
-                                                                   self.num))
+            fd.write("00000 {0} M={1:2d}   1 SNBR={2:4d}\n".format(idat.strftime('%d/%m/%Y'), len(self.tracks[ic]),self.num))
             ext = '*0000000*00000000000000000000*00000000000000000000*00000000000000000000*\n'
-            for fix in self.tracks[ic]:
-                wind = fix['min'] > 0 and round(fix['wind']) or 0
-                fd.write("00000 {0}*{1}{2:3d}{3:4d}{4:5d}".format(fix['date'].strftime('%Y/%m/%d/%H'),round(fix['lat']*10),
-                                                                  round(fix['lon']*10), wind, round(fix['pres'])) + ext)
+            for fixes in self.tracks[ic]:
+                for fix in fixes:
+                    wind = fix['min'] > 0 and round(fix['wind']) or 0
+                    fd.write("00000 {0}*{1}{2:3d}{3:4d}{4:5d}".format(fix['date'].strftime('%Y/%m/%d/%H'),round(fix['lat']*10),
+                                                                      round(fix['lon']*10), wind, round(fix['pres'])) + ext)
             fd.write("00000  EX\n")
             fd.close()
     def _find_ics(self):
@@ -81,21 +84,64 @@ class storm(dict):
         (ilat, ilon) = (float(irow['LAT'].iloc[0]), float(irow['LON'].iloc[0]))
         if ilon < 0: ilon = ilon + 360
         return((ilat, ilon, self._todtime(meta['datev']), meta['ip2']))
-    def _findCentre(self, grid, fld, lat, lon):
+    def _fcstPos(self, key, lats, lons, motion=True):
+        meta = rmn.fstprm(key)
+        datev = self._todtime(meta['datev'])
+        ip2 = meta['ip2']
+        if motion:
+            return((2*lats[-1]-lats[-2], 2*lons[-1]-lons[-2], datev, ip2))
+        else:
+            return((lats[-1], lons[-1], datev, ip2))
+        
+    def _findCentre(self, grid, fld, lat, lon, radmul=1):
         xy = rmn.gdxyfll(grid['id'], lat, lon)
         x = int(xy['x'][0])-1
         y = int(xy['y'][0])-1
-        search_fld = fld['d'][x-self.dxy:x+self.dxy+1,y-self.dxy:y+self.dxy+1]
+        rad = round(radmul * self.search_rad)
+        search_fld = fld['d'][max(x-rad,0):min(x+rad+1,grid['ni']-1),y-rad:y+rad+1]
         xy_sub = np.where(search_fld == search_fld.min())
-        ll = rmn.gdllfxy(grid['id'], [x-self.dxy+xy_sub[0]], [y-self.dxy+xy_sub[1]])
+        ll = rmn.gdllfxy(grid['id'], [x-rad+xy_sub[0]], [y-rad+xy_sub[1]])
         xf = int(ll['x'][0,0])
         yf = int(ll['y'][0,0])
         fldf = float(fld['d'][xf,yf])
         ismin = 0
-        if fld['d'][max(xf-1,0):xf+2,yf-1:yf+2].min() == fldf:
+        xflim = min(max(xf, 2), grid['ni']-3)
+        if fld['d'][xflim-1:xflim+2,yf-1:yf+2].min() == fldf:
             ismin=1
         return({'x':xf, 'y':yf, 'hght':fldf, 'min':ismin, 
                 'lat':float(ll['lat'][0,0]), 'lon':float(ll['lon'][0,0])})
+    def  _tracking(self, fd, keys_in, dir):
+        keys = keys_in[::dir]        
+        lats = []
+        lons = []
+        track = []
+        for key in keys:
+            fld = rmn.fstluk(key)
+            grid = rmn.readGrid(fd, fld)
+            if len(lats) < 2:
+                (lat, lon, date, fcst) = self._btPos(key)
+                found = self._findCentre(grid, fld, lat, lon)
+                if found['min'] < 1:
+                    found = self._findCentre(grid, fld, lat, lon, radmul=2)
+            else:
+                (lat, lon, date, fcst) = self._fcstPos(key, lats, lons)
+                found = self._findCentre(grid, fld, lat, lon)
+                if found['min'] < 1:
+                    found = self._findCentre(grid, fld, lat, lon, radmul=2)
+                if found['min'] < 1:
+                    (lat, lon, date, fcst) = self._fcstPos(key, lats, lons, motion=False)
+                    found = self._findCentre(grid, fld, lat, lon)
+                if found['min'] < 1:
+                    found = self._findCentre(grid, fld, lat, lon, radmul=2)
+            if found['min'] < 1:
+                break
+            lats.append(found['lat'])
+            lons.append(found['lon'])
+            found['date'] = date
+            found['fcst'] = fcst
+            (found['pres'], found['wind']) = self._vitals(found)
+            track.append(found)
+        return(track[::dir])
     def _vitals(self, fix):
         wind_dxy = 4
         x = fix['x']
@@ -131,13 +177,18 @@ if __name__ == "__main__":
                   "2024267N29129", "2024269N14150", "2024278N11150", "2024298N13150"],
             'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
                   "2024269N39302", "2024274N14328", "2024279N21265"]}
+
+
+    #tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
+    #              "2024269N39302", "2024274N14328", "2024279N21265"]}
     
     fcst_path = "data/oic/cwao/pm"
     opath = "tracks/oic/cwao/pm"
 
     # Track identified storms in appropriate basins
     for basin in tcid.keys():
-        df = pd.read_csv('ibtracs/ibtracs.'+basin+'.list.v04r01.csv', index_col="SID")
+        df = pd.read_csv('ibtracs/ibtracs.'+basin+'.list.v04r01.csv', index_col="SID",
+                         low_memory=False)
         for tc in tcid[basin]:
             bt = storm(df, tc, fcst_path)
             bt.tctrack()
