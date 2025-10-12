@@ -64,7 +64,7 @@ class storm(dict):
             for fixes in self.tracks[ic]:
                 for fix in fixes:
                     wind = fix['min'] > 0 and round(fix['wind']) or 0
-                    fd.write("00000 {0}*{1}{2:3d}{3:4d}{4:5d}".format(fix['date'].strftime('%Y/%m/%d/%H'),round(fix['lat']*10),
+                    fd.write("00000 {0}*{1}{2:03d}{3:04d}{4:5d}".format(fix['date'].strftime('%Y/%m/%d/%H'),round(fix['lat']*10),
                                                                       round(fix['lon']*10), wind, round(fix['pres'])) + ext)
             fd.write("00000  EX\n")
             fd.close()
@@ -179,8 +179,8 @@ if __name__ == "__main__":
                   "2024269N39302", "2024274N14328", "2024279N21265"]}
 
 
-    #tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
-    #              "2024269N39302", "2024274N14328", "2024279N21265"]}
+    tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
+                  "2024269N39302", "2024274N14328", "2024279N21265"]}
     
     fcst_path = "data/oic/cwao/pm"
     opath = "tracks/oic/cwao/pm"
