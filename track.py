@@ -58,16 +58,23 @@ class storm(dict):
                 os.makedirs(path)
             except FileExistsError:
                 pass
-            fd = open(fname, "a")
-            fd.write("00000 {0} M={1:2d}   1 SNBR={2:4d}\n".format(idat.strftime('%d/%m/%Y'), len(self.tracks[ic]),self.num))
-            ext = '*0000000*00000000000000000000*00000000000000000000*00000000000000000000*\n'
-            for fixes in self.tracks[ic]:
-                for fix in fixes:
-                    wind = fix['min'] > 0 and round(fix['wind']) or 0
-                    fd.write("00000 {0}*{1}{2:03d}{3:04d}{4:5d}".format(fix['date'].strftime('%Y/%m/%d/%H'),round(fix['lat']*10),
-                                                                      round(fix['lon']*10), wind, round(fix['pres'])) + ext)
-            fd.write("00000  EX\n")
-            fd.close()
+            try:
+                with open(fname, "r") as fd:
+                    cnt = len(fd.readlines())
+            except FileNotFoundError:
+                cnt = 0
+            with open(fname, "a+") as fd:
+                fd.write("{0:05d} {1} M={2:2d}   1 SNBR={3:4d}\n".format(cnt*10, idat.strftime('%d/%m/%Y'),
+                                                                         len(self.tracks[ic]), self.num))
+                ext = '*0000000*00000000000000000000*00000000000000000000*00000000000000000000*\n'
+                for fixes in self.tracks[ic]:
+                    for fix in fixes:
+                        wind = fix['min'] > 0 and round(fix['wind']) or 0
+                        cnt = cnt+1
+                        fd.write("{0:05d} {1}*{2:03d}{3:04d}{4:4d}{5:5d}".format(cnt*10, fix['date'].strftime('%Y/%m/%d/%H'),
+                                                                                 round(fix['lat']*10), round(fix['lon']*10),
+                                                                                 wind, round(fix['pres'])) + ext)
+                fd.write("{0:05d}  EX\n".format(cnt*10+5))
     def _find_ics(self):
         fd = rmn.fstopenall(os.path.join(self.dpath, 'gh_1000*'))
         end = self._torpndate(self.end)
