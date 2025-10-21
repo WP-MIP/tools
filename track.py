@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/fs/homeu2/eccc/mrd/ords/rpnatm/rmt001/installed/venv/bin/python
 import pandas as pd
 import rpnpy.librmn.all as rmn
 from datetime import datetime as dt
@@ -183,22 +183,25 @@ class storm(dict):
 
 
 if __name__ == "__main__":
+    import argparse
 
+    # Set storm IDs to track
     tcid = {'WP':["2024141N03142", "2024151N18113", "2024224N27154", "2024225N22135",
                   "2024225N24147", "2024231N24126", "2024246N22147", "2024259N12145",
                   "2024267N29129", "2024269N14150", "2024278N11150", "2024298N13150"],
             'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
                   "2024269N39302", "2024274N14328", "2024279N21265"]}
-
-
     #tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
     #              "2024269N39302", "2024274N14328", "2024279N21265"]}
 
-    centre = "cwao"
-    stream = "oic"
-    mtype = "pm"
-    fcst_path = os.path.join("data", stream, centre, mtype)
-    opath = os.path.join("tracks", stream)
+    # Retrieve command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('stream', help="WP-MIP stream (oic/sic)")
+    parser.add_argument('centre', help="Generating centre")
+    parser.add_argument('mtype', help="Model type (pm/ai/hy)")
+    args = parser.parse_args()
+    fcst_path = os.path.join("data", args.stream, args.centre, args.mtype)
+    opath = os.path.join("tracks", args.stream)
 
     # Track identified storms in appropriate basins
     basin_long = {'NA':'atl', 'WP':'wnp', 'EP':'enp'}
@@ -208,7 +211,7 @@ if __name__ == "__main__":
         for tc in tcid[basin]:
             bt = storm(df, tc, fcst_path)
             bt.tctrack()
-            bt.write(opath, centre, mtype, basin_long[basin])
+            bt.write(opath, args.centre, args.mtype, basin_long[basin])
 
     
 
