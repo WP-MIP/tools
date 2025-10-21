@@ -17,7 +17,8 @@ class storm(dict):
         self.end_str = self.track['ISO_TIME'].iloc[-1]
         self.end = dt.fromisoformat(self.end_str)
         self.search_rad = 8
-        self._find_ics()
+        #self._find_ics()
+        self.ic_dates = find_ics(self.dpath, end=self.end)
     def tctrack(self):
         fd = rmn.fstopenall(os.path.join(self.dpath, 'gh_1000*'))
         fcst_keys = {}
@@ -29,13 +30,13 @@ class storm(dict):
             for key in keys:
                 meta = rmn.fstprm(key)
                 if meta['dateo'] == ic:
-                    if rmn.difdatr(meta['datev'], self._torpndate(self.start)) >= 0 \
-                       and rmn.difdatr(meta['datev'], self._torpndate(self.end)) <= 0:
+                    if rmn.difdatr(meta['datev'], torpndate(self.start)) >= 0 \
+                       and rmn.difdatr(meta['datev'], torpndate(self.end)) <= 0:
                         fcst_keys[ic].append(key)
                         nature = self.track.loc[self.track['ISO_TIME'] ==
                                                 self._rpntoibtracs(meta['datev'])]['NATURE'].iloc[0]
                         if ic not in et.keys() and (nature == "ET" or key == keys[-1]):
-                                et[ic] = {'date':self._todtime(meta['datev']), 'key':key}
+                                et[ic] = {'date':todtime(meta['datev']), 'key':key}
         # Process each initialization
         self.tracks = {}
         for ic in fcst_keys.keys():
@@ -52,8 +53,7 @@ class storm(dict):
     def write(self, path, centre, mtype, basin_long):
         for ic in self.tracks.keys():
             if (len(self.tracks[ic]) < 1): continue
-            idat = self._todtime(ic)
-            fname = os.path.join(path, centre, mtype, centre+idat.strftime('%Y%m%d%H')+"_FC_000360_"+basin_long)
+            fname = ofile_name(path, centre, mtype, basin_long, ic)
             try:
                 os.makedirs(os.path.dirname(fname))
             except FileExistsError:
@@ -64,7 +64,7 @@ class storm(dict):
             except FileNotFoundError:
                 cnt = 0
             with open(fname, "a+") as fd:
-                fd.write("{0:05d} {1} M={2:2d}   1 SNBR={3:4d}\n".format(cnt*10, idat.strftime('%d/%m/%Y'),
+                fd.write("{0:05d} {1} M={2:2d}   1 SNBR={3:4d}\n".format(cnt*10, todtime(ic).strftime('%d/%m/%Y'),
                                                                          len(self.tracks[ic]), self.num))
                 ext = '*0000000*00000000000000000000*00000000000000000000*00000000000000000000*\n'
                 for fixes in self.tracks[ic]:
@@ -79,7 +79,7 @@ class storm(dict):
                 fd.write("{0:05d}  EX\n".format(cnt*10+5))
     def _find_ics(self):
         fd = rmn.fstopenall(os.path.join(self.dpath, 'gh_1000*'))
-        end = self._torpndate(self.end)
+        end = torpndate(self.end)
         keys = rmn.fstinl(fd, datev=end)
         self.ic_dates = []
         for key in keys:
@@ -92,10 +92,10 @@ class storm(dict):
         irow = self.track.loc[self.track['ISO_TIME'] == self._rpntoibtracs(meta['datev'])]
         (ilat, ilon) = (float(irow['LAT'].iloc[0]), float(irow['LON'].iloc[0]))
         if ilon < 0: ilon = ilon + 360
-        return((ilat, ilon, self._todtime(meta['datev']), meta['ip2']))
+        return((ilat, ilon, todtime(meta['datev']), meta['ip2']))
     def _fcstPos(self, key, lats, lons, motion=True):
         meta = rmn.fstprm(key)
-        datev = self._todtime(meta['datev'])
+        datev = todtime(meta['datev'])
         ip2 = meta['ip2']
         if motion:
             return((2*lats[-1]-lats[-2], 2*lons[-1]-lons[-2], datev, ip2))
@@ -167,21 +167,49 @@ class storm(dict):
         return(pres, wind, ll['lat'][0,0], ll['lon'][0,0])
     def _readfld(self, fix, name):
         fdfld = rmn.fstopenall(os.path.join(self.dpath, name+'_1000*'))
-        fld = rmn.fstlir(fdfld, datev=self._torpndate(fix['date']), ip2=fix['fcst'])
+        fld = rmn.fstlir(fdfld, datev=torpndate(fix['date']), ip2=fix['fcst'])
         rmn.fstcloseall(fdfld)
         return(fld)
-    def _torpndate(self, dtime):
-        return(rmn.newdate(rmn.NEWDATE_PRINT2STAMP, int(dtime.strftime('%Y%m%d')),
-                           int(dtime.strftime('%H%M%S'))*100))
-    def _todtime(self, rpndate):
-        (ymd, hms) = rmn.newdate(rmn.NEWDATE_STAMP2PRINT, rpndate)
-        return(dt.strptime(str(ymd)+str(int(hms/1000000)).rjust(2, '0'), '%Y%m%d%H'))
     def _dttoibtracs(self, dtime):
         return(dtime.strftime('%Y-%m-%d %H:%M:%S'))
     def _rpntoibtracs(self, rpndate):
-        return(self._dttoibtracs(self._todtime(rpndate)))
+        return(self._dttoibtracs(todtime(rpndate)))
 
+def todtime(rpndate):
+    (ymd, hms) = rmn.newdate(rmn.NEWDATE_STAMP2PRINT, rpndate)
+    return(dt.strptime(str(ymd)+str(int(hms/1000000)).rjust(2, '0'), '%Y%m%d%H'))
 
+def torpndate(dtime):
+    return(rmn.newdate(rmn.NEWDATE_PRINT2STAMP, int(dtime.strftime('%Y%m%d')),
+                       int(dtime.strftime('%H%M%S'))*100))
+
+def ofile_name(opath, centre, mtype, lbasin, ic):
+    idat = todtime(ic)
+    return(os.path.join(opath, centre, mtype, centre+idat.strftime('%Y%m%d%H')+"_FC_000360_"+lbasin))
+    
+def find_ics(dpath, end=None):
+    fd = rmn.fstopenall(os.path.join(dpath, 'gh_1000*'))
+    if end:
+        end_rpn = torpndate(end)
+        keys = rmn.fstinl(fd, datev=end_rpn)
+    else:
+        keys = rmn.fstinl(fd, ip2=0)
+    ic_dates = []
+    for key in keys:
+        meta = rmn.fstprm(key)
+        ic_dates.append(meta['dateo'])
+    rmn.fstcloseall(fd)
+    return(ic_dates)
+    
+def fill_dates(fpath, opath, centre, mtype, lbasin):
+    """Fill in missing dates with blank files"""
+    for dateo in find_ics(fpath):
+        fname = ofile_name(opath, centre, mtype, lbasin, dateo)
+        if not os.path.exists(fname):
+            with open(fname, "w") as fd:
+                fd.write("0000 00/00/0000 M= 0  0 SNBR=   0")
+
+                
 if __name__ == "__main__":
     import argparse
 
@@ -191,8 +219,6 @@ if __name__ == "__main__":
                   "2024267N29129", "2024269N14150", "2024278N11150", "2024298N13150"],
             'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
                   "2024269N39302", "2024274N14328", "2024279N21265"]}
-    #tcid = {'NA':["2024181N09320", "2024216N20284", "2024225N14313", "2024253N21266",
-    #              "2024269N39302", "2024274N14328", "2024279N21265"]}
 
     # Retrieve command line arguments
     parser = argparse.ArgumentParser()
@@ -212,6 +238,6 @@ if __name__ == "__main__":
             bt = storm(df, tc, fcst_path)
             bt.tctrack()
             bt.write(opath, args.centre, args.mtype, basin_long[basin])
-
+        fill_dates(fcst_path, opath, args.centre, args.mtype, basin_long[basin])
     
 
