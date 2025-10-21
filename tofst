@@ -5,11 +5,17 @@ convert(){
     ofile=$(echo ${fn} | sed 's/\.grib2/.fst/')
     rm -f ${fn}.uncomp ${ofile}
     grib_set -r -s packingType=grid_simple ${fn} ${fn}.uncomp
-    grib2_decode -i ${fn}.uncomp -o ${ofile}
-    rm ${fn}.uncomp
+    grib2_decode -i ${fn}.uncomp -o ${ofile}.uncomp
+    fstcompress -fstin ${ofile}.uncomp -fstout ${ofile}
+    rm ${fn}.uncomp ${ofile}.uncomp
 }
-    
-indir=data/oic/cwao/pm
+
+
+if [[ -z "${1}" ]] ; then
+    echo "${0} PATH"
+    exit 1
+fi
+indir=${1}
 pwd=${PWD}
 
 cd ${indir}
