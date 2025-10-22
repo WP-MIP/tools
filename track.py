@@ -207,7 +207,7 @@ def fill_dates(fpath, opath, centre, mtype, lbasin):
         fname = ofile_name(opath, centre, mtype, lbasin, dateo)
         if not os.path.exists(fname):
             with open(fname, "w") as fd:
-                fd.write("0000 00/00/0000 M= 0  0 SNBR=   0")
+                fd.write("00000 00/00/0000 M= 0  0 SNBR=   0")
 
                 
 if __name__ == "__main__":
