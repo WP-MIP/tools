@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 
+gribpath=/home/rmt001/local/ppp6/data/mip/wpmip/shared/postproc/grib2
+
 convert(){
     fn=$1
     ofile=$(echo ${fn} | sed 's/\.grib2/.fst/')
     rm -f ${fn}.uncomp ${ofile}
     grib_set -r -s packingType=grid_simple ${fn} ${fn}.uncomp
-    grib2_decode -i ${fn}.uncomp -o ${ofile}.uncomp
+    grib2_decode -i ${fn}.uncomp -o ${ofile}.uncomp \
+		 -g2dic ${gribpath}/grib2.dictionary_wpmip \
+		 -g2proc ${gribpath}/grib2.process_wpmip \
+		 -config ${gribpath}/grib2.config_wpmip
     fstcompress -fstin ${ofile}.uncomp -fstout ${ofile}
     rm ${fn}.uncomp ${ofile}.uncomp
 }
